@@ -43,120 +43,137 @@ You can click the `View trace` URL to see the detailed trace in the OpenAI Platf
 
 ### 2. Logs overview: all calls in one place
 
-![Logs overview](../assets/Screenshot_2026-03-11_at_7.17.31_AM-b3d0d772-6403-497d-97b6-56dfa0a58683.png)
+![Logs overview](../docs/assets/1-a968a656-dccb-4a5f-b9ad-26d83034af02.png)
 
-This screenshot shows the **Logs → Responses** view in the OpenAI dashboard:
+This screenshot shows the **Logs → Responses** view in the OpenAI dashboard for the same run as the terminal snippet above:
 
-- Each row corresponds to a **single agent call** (planner, each search, writer, email).
-- The **Input** column contains the prompt or tool arguments.
-- The **Output** column contains the model’s reply or tool calls.
-- You can filter by prompt ID, date, or model to debug a specific run.
+- Each row corresponds to a **single agent call** in the workflow started by `ResearchManager.run`.
+- You can see one planner call, three search calls, one writer call, and one email call – matching the steps:
+  - `Planning searches...`
+  - `Will perform 3 searches`
+  - `Searching... 1/3 completed` … `3/3 completed`
+  - `Finished writing report`
+  - `Writing email...`
+- The **Input** column shows the prompt or arguments we send.
+- The **Output** column shows the model’s structured response or tool call.
 
-This view is useful to quickly confirm that all steps (plan, search, write, email) executed for a given query.
+From here you can click into any row to inspect the detailed input/output and understand exactly what happened at that step.
 
 ---
 
 ### 3. Planner agent: planning the web searches
 
-![Planner agent log](../assets/Screenshot_2026-03-11_at_7.18.49_AM-9ab5614e-eafc-4c18-a668-60226197f7b6.png)
+![Planner agent log](../docs/assets/2-ce0a3b93-e649-403f-b44e-c6f1e7a943ed.png)
 
-This screenshot shows the log entry corresponding to the **planner agent**:
+This screenshot is the log entry for the **planner agent** defined in `planner_agent.py`:
 
-- **Instructions**: describe the agent as a research assistant that should output exactly 3 search terms.
-- **Input**: the original user query, e.g. `What are top 4 Agentic AI frameworks in 2026`.
-- **Output**: a JSON object with a `searches` list. Each item has:
-  - `reason`: why this search is relevant.
-  - `query`: the concrete search term.
+- At the top you see the **System Instructions** from `INSTRUCTIONS` in `planner_agent.py` (helpful research assistant, output 3 searches).
+- Under **Input → User** you see the exact query that came from the Gradio UI, e.g. `Query: What are top 4 Agentic AI frameworks in 2026`.
+- Under **Output → Assistant** you see a JSON object that matches the `WebSearchPlan` / `WebSearchItem` schema:
+  - A top-level `searches` list.
+  - Each item has a `reason` and a `query` string.
 
-In code, this is the agent defined in `planner_agent.py`, returning a structured `WebSearchPlan`.  
-`ResearchManager.plan_searches` reads this output and logs `Will perform 3 searches` in the terminal based on `len(searches)`.
+In `research_manager.py`, `ResearchManager.plan_searches` calls:
+
+- `Runner.run(planner_agent, f"Query: {query}")`
+- Then converts the result to a `WebSearchPlan` via `final_output_as(WebSearchPlan)` and prints `Will perform 3 searches`, which you saw in the terminal.
 
 ---
 
 ### 4. Search agent: running web searches in parallel
 
-![Search agent log 1](../assets/Screenshot_2026-03-11_at_7.19.16_AM-7a3f70d7-35d7-44be-9b59-bfe3134c71ed.png)
+First search call:
 
-![Search agent log 2](../assets/Screenshot_2026-03-11_at_7.19.51_AM-caf7eb5b-f33b-44ee-b06b-2a5e8238b39e.png)
+![Search agent log 1](../docs/assets/3-648e3c06-22a3-4ccc-b093-01e08db10946.png)
 
-Each of these screenshots shows a log entry for one **search agent** call:
+Second search call:
 
-- **Instructions**: tell the agent to search the web and produce a concise 2–3 paragraph summary (< 300 words).
-- **Input**: a string combining
-  - `Search term: ...`
-  - `Reason for searching: ...`
-- **Output**:
-  - A **tool call** to `Web Search` (the `WebSearchTool`).
-  - A textual **summary** of the web results, referencing links found during the search.
+![Search agent log 2](../docs/assets/4-aa09809a-9193-4d91-80ae-d2a9e4bdeb5a.png)
+
+Each screenshot is a **separate call** to the search agent created in `search_agent.py` and invoked by `ResearchManager.search`:
+
+- **Instructions** at the top tell the agent to:
+  - Use the web search tool.
+  - Produce a 2–3 paragraph summary under 300 words.
+- **Input** includes:
+  - `Search term: ...` (from `WebSearchItem.query`).
+  - `Reason for searching: ...` (from `WebSearchItem.reason`).
+- **Output** shows:
+  - A `Web Search` tool call, where the platform actually hits the web.
+  - The final **summary text** the agent returns.
 
 In `ResearchManager.perform_searches`:
 
-- For each `WebSearchItem` from the planner, `self.search(item)` runs the search agent.
-- `asyncio.create_task` schedules all searches concurrently.
-- `asyncio.as_completed` yields results as they finish, which drives the terminal updates:
+- We build `asyncio` tasks: `[asyncio.create_task(self.search(item)) for item in search_plan.searches]`.
+- `asyncio.as_completed(tasks)` yields each completed search; after each one we increment `num_completed` and print:
   - `Searching... 1/3 completed`
   - `Searching... 2/3 completed`
   - `Searching... 3/3 completed`
 
-The summaries returned here become the **“summarized search results”** passed into the writer agent.
+The summary strings you see in these screenshots are appended to a list and later passed as `search_results` into the writer agent.
 
 ---
 
 ### 5. Writer agent: creating the long-form report
 
-![Writer agent log](../assets/Screenshot_2026-03-11_at_7.20.42_AM-73dd0153-ebb9-4134-9a97-4045a8fa823b.png)
+![Writer agent log](../docs/assets/5-summarize-bf28a846-7ee6-485b-bbf9-0ff70af81672.png)
 
-This screenshot shows the log entry for the **writer agent**:
+This screenshot is the **writer agent** call, wired up in `writer_agent.py` and invoked from `ResearchManager.write_report`:
 
-- **Instructions**: describe a senior researcher who must:
-  - Read the original query and search summaries.
-  - Create an outline.
-  - Write a long markdown report (5–10 pages, ≥ 1000 words).
-- **Input**: text that includes:
+- **Instructions** at the top come from `INSTRUCTIONS` in `writer_agent.py`:
+  - Act as a senior researcher.
+  - Read the query and the initial research.
+  - Produce a long markdown report (5–10 pages, ≥ 1000 words).
+- **Input → User** shows exactly what `write_report` sends:
   - `Original query: ...`
-  - `Summarized search results: [...]` (the list of search summaries).
-- **Output**: a structured `ReportData` object with:
+  - `Summarized search results: [...]` – the list of search summaries returned from the previous step.
+- **Output → Assistant** is a JSON object matching the `ReportData` model:
   - `short_summary`
   - `markdown_report`
   - `follow_up_questions`
 
-`ResearchManager.write_report` reads this output and logs:
+In `ResearchManager.write_report` we:
 
-- `Thinking about report...`
-- `Finished writing report`
+- Print `Thinking about report...` before the call.
+- Await `Runner.run(writer_agent, input)`.
+- Print `Finished writing report` when it completes.
 
-The `markdown_report` field is what you see rendered in the browser UI and what gets passed to the email agent.
+The `markdown_report` field here is what the Gradio UI streams to the user at the end of the run.
 
 ---
 
 ### 6. Email agent: formatting to HTML and sending the email
 
-![Email agent function call](../assets/Screenshot_2026-03-11_at_7.21.14_AM-9727226c-772b-426c-a0c1-82dec13b8eed.png)
+First, the email agent’s tool call:
 
-![Email agent hosted environment result](../assets/Screenshot_2026-03-11_at_7.22.01_AM-d1f250b5-f89d-4637-8bc1-b16b2f389560.png)
+![Email agent function call](../docs/assets/6-format-to-html-ae240db3-5e5f-46a6-93bd-2a8a2fdad2c4.png)
 
-These screenshots show the log entries corresponding to the **email agent**:
+Then, the hosted environment’s follow‑up:
 
-- **Instructions**: tell the agent to send a nicely formatted HTML email based on a detailed report.
-- **Input**: the full markdown report created by the writer agent.
-- **Output** (Function Call):
-  - A call to the `send_email` tool with arguments:
-    - `subject`: e.g. `"Report on Top Agentic AI Frameworks in 2026"`.
-    - `html_body`: the report converted into HTML.
+![Email agent hosted environment result](../docs/assets/7-send_email-e4f99d06-8efc-4394-8cb2-d7eb097668a7.png)
 
-In the local environment:
+These two screenshots together show the **email agent** behavior configured in `email_agent.py` and triggered by `ResearchManager.send_email`:
 
-- `send_email` (in `email_agent.py`) uses the SendGrid SDK and environment variable `SENDGRID_API_KEY`.
-- It sends the HTML email to the configured recipient and prints the SendGrid response status.
-- `ResearchManager.send_email` logs:
+- **Instructions** tell the agent it can send a nicely formatted HTML email based on a detailed report.
+- **Input** is the full markdown report from the writer agent.
+- **Output (Function Call)** shows a call to the `send_email` tool with:
+  - `subject`: e.g. `"Report on Top Agentic AI Frameworks in 2026"`.
+  - `html_body`: the report converted to HTML.
+
+Locally, `send_email` is implemented with the SendGrid SDK:
+
+- It uses the `SENDGRID_API_KEY` environment variable.
+- Constructs a `Mail` object with hard-coded `from_email` / `to_email`.
+- Sends the email and prints the SendGrid status code.
+- `ResearchManager.send_email` prints:
   - `Writing email...`
   - `Email sent`
 
-In some hosted environments, you may see an additional assistant message like:
+In the hosted logs screenshot, you also see a message like:
 
 > “It seems I encountered an issue while trying to send the email…”
 
-This reflects limitations of the hosted environment, but in your local run the tool completes and the email is actually sent.
+That reflects limitations of the hosted environment where the tool can’t actually send mail, but for your local run the same tool call path works and the email is delivered.
 
 ---
 
