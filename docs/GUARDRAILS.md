@@ -57,6 +57,7 @@ There are several natural insertion points in this project:
     - Avoid making factual claims without citing sources.
     - Stay within specific formatting requirements.
   - Use **structured outputs (Pydantic models)** as a basic guardrail so you can validate types, lengths, and ranges before using the data.
+  - Attach **input / output guardrails** directly on agents (see below) so the SDK can validate or transform data before it reaches your tools or downstream code.
 
 - **Tools and external calls (`email_agent.py`, any future tools)**
   - Add **pre‑send checks** before sending email:
@@ -100,7 +101,83 @@ Here are a few practical guardrails you can add as you harden the system:
 
 ---
 
-### 5. Concrete code examples in this repo
+### 5. Using input/output guardrails on agents
+
+If you are using a version of the `agents` SDK that supports **input** and **output** guardrails on `Agent`, you can attach them at agent construction time. This lets the SDK enforce policies and transformations **before** your instructions/tools run, or **before** the final output is returned.
+
+Conceptually, an input guardrail is a function that takes the user input (or upstream agent output) and either:
+
+- Returns a cleaned/normalized version, or
+- Raises/returns an error object if the input is not allowed.
+
+Similarly, an output guardrail checks the agent’s response before it is exposed downstream.
+
+Example pattern (not from this repo):
+
+```python
+careful_sales_manager = Agent(
+    name="Sales Manager",
+    instructions=sales_manager_instructions,
+    tools=tools,
+    handoffs=[emailer_agent],
+    model="gpt-4o-mini",
+    input_guardrails=[guardrail_against_name],
+)
+```
+
+You can apply the same idea to agents in this project:
+
+- **Planner agent (`planner_agent.py`)**
+
+  ```python
+  def guardrail_planner_input(text: str) -> str:
+      # Reject empty or extremely long queries.
+      cleaned = text.strip()
+      if not cleaned or len(cleaned) > 500:
+          raise ValueError("Query is empty or too long for planning.")
+      return cleaned
+
+  planner_agent = Agent(
+      name="PlannerAgent",
+      instructions=INSTRUCTIONS,
+      model="gpt-4o-mini",
+      output_type=WebSearchPlan,
+      input_guardrails=[guardrail_planner_input],
+  )
+  ```
+
+- **Search agent (`search_agent.py`) output guardrail (conceptual)**  
+  You could define a guardrail that:
+  - Truncates very long summaries.
+  - Ensures at least one citation/link is present.
+  - Strips disallowed HTML.
+
+- **Writer agent (`writer_agent.py`) output guardrail**
+
+  Instead of (or in addition to) post‑processing in `ResearchManager`, you can attach an output guardrail that:
+
+  ```python
+  def guardrail_writer_output(report: ReportData) -> ReportData:
+      # Enforce maximum length.
+      words = report.markdown_report.split()
+      if len(words) > 3000:
+          report.markdown_report = " ".join(words[:3000]) + "\n\n_[Truncated for length]_"
+      return report
+
+  writer_agent = Agent(
+      name="WriterAgent",
+      instructions=INSTRUCTIONS,
+      model="gpt-4o-mini",
+      output_type=ReportData,
+      output_guardrails=[guardrail_writer_output],
+  )
+  ```
+
+This style keeps certain guardrails **close to the agent definition**, making it easy to see – in one place – the instructions, tools, and safety/validation logic that govern that agent’s behavior.
+
+---
+
+### 6. Concrete code examples in this repo
 
 Below are **non-breaking example snippets** showing how you might implement some of these guardrails in this codebase. They are meant as starting points rather than copy‑paste requirements.
 
@@ -219,7 +296,7 @@ Below are **non-breaking example snippets** showing how you might implement some
 
 ---
 
-### 6. Moving from demo to production
+### 7. Moving from demo to production
 
 When you’re ready to treat this as a production service, consider adding:
 
