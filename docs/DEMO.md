@@ -52,6 +52,14 @@ You will see a page like this:
 
 ![Deep Research UI](../assets/Screenshot_2026-03-11_at_7.07.29_AM-e13f8ad9-4330-411d-9880-a72c294815d1.png)
 
+Updated UI example with a real deep-research run:
+
+![Deep Research UI – example query](../docs/assets/Screenshot_2026-03-11_at_7.47.59_AM-c0e6f8e1-88cc-4427-a69f-d56214e06d3a.png)
+
+Updated terminal snapshot from the same run:
+
+![Terminal run – example query](../docs/assets/Screenshot_2026-03-11_at_7.48.44_AM-7ecfa187-1e4e-485a-ba2a-0efda5ec9ab3.png)
+
 The UI (defined in `src/deep_research.py`) contains:
 
 - A **textbox**: “What topic would you like to research?”
