@@ -27,19 +27,28 @@ This project chains multiple agents and tools:
 
 - `planner_agent` → `search_agent` (3×) → `writer_agent` → `email_agent`
 
-Each change to:
+There are **two main layers** you care about:
+
+- **Agent‑level behavior** – Does each agent do its specific job well?
+  - Planner: good search plan.
+  - Search: faithful summaries of web results.
+  - Writer: clear, structured report.
+  - Email: clean HTML, sensible subject.
+- **Underlying LLM behavior** – Does the base model (e.g. `gpt‑4o‑mini`) follow instructions, stay on policy, and respond with the right style?
+
+Changes to:
 
 - Instructions (prompts),
 - Model choice (e.g., switching to a different model),
 - Guardrails, or
 - Tool behavior (e.g., search or email)
 
-can affect the **final report quality**, **runtime**, and **user experience**.
+can affect both layers.
 
 Evals help you:
 
-- Detect regressions when you tweak prompts or models.
-- Compare different configurations (e.g., 3 vs 5 searches, different models).
+- Detect regressions when you tweak prompts or swap models.
+- Compare different configurations (e.g., 3 vs 5 searches, different models per agent).
 - Build confidence before shipping changes to production.
 
 ---
@@ -63,6 +72,13 @@ You can evaluate this project at three main levels:
   - Latency per step.
   - Cost per run.
   - Error rates (e.g., search failures, email failures).
+
+At a glance, mapping **agents → eval focus**:
+
+- `planner_agent`: coverage of query, diversity of searches, usefulness of reasons.
+- `search_agent`: factuality and conciseness of summaries, presence of citations.
+- `writer_agent`: structure, depth, correctness, and style of long report.
+- `email_agent`: correctness of HTML formatting and subject, safety of outgoing content.
 
 ---
 
@@ -213,15 +229,146 @@ You can combine this with the **guardrails** in `GUARDRAILS.md` (e.g., input val
 
 ---
 
+#### 4.6 LLM‑level evals (model behavior only)
+
+Sometimes you want to evaluate the **raw model behavior** (e.g. `gpt‑4o‑mini`) independent of tools and orchestration. Typical checks:
+
+- **Instruction following** – Does the model respect style/formatting constraints?
+- **Reasoning quality** – For smaller tasks, does it reach the right answer?
+- **Policy adherence** – Does it refuse disallowed requests?
+
+Examples for this project:
+
+- Take the **writer prompt** (from `writer_agent.py`) and run it on **shorter synthetic tasks** in a notebook:
+  - Ask it to write a 2‑paragraph summary instead of a full report.
+  - Score the result with a rubric (or another model) for clarity and structure.
+- Evaluate different models (e.g., `gpt‑4o‑mini` vs a larger model) on the same small tasks and log:
+  - Quality score (human or model‑graded).
+  - Latency.
+  - Cost.
+
+You can do the same with the **planner** and **search** instructions by calling the underlying model directly (bypassing tools) to compare how different models behave before wiring them back into the full Deep Research pipeline.
+
+---
+
 ### 5. How to run evals in practice
 
-You can start simple and evolve over time:
+You can start simple and evolve over time. Below are **concrete, minimal examples** you can adapt.
 
-- **Phase 1 – Manual / notebook‑based**
-  - Use a Jupyter notebook or simple scripts to:
-    - Call agents or the full pipeline on a handful of queries.
-    - Visually inspect outputs and jot down notes.
-  - Good for early experimentation.
+- **Example A – End‑to‑end eval script**
+
+  Create `evals/run_end_to_end.py`:
+
+  ```python
+  # evals/run_end_to_end.py
+  import asyncio
+  from research_manager import ResearchManager
+
+  QUERIES = [
+      "What are top 4 Agentic AI frameworks in 2026?",
+      "Explain RLHF (Reinforcement Learning from Human Feedback) to a senior engineer.",
+  ]
+
+  async def run_one(query: str) -> dict:
+      manager = ResearchManager()
+      final_report = None
+      async for chunk in manager.run(query):
+          final_report = chunk
+      text = str(final_report)
+      return {
+          "query": query,
+          "word_count": len(text.split()),
+          "has_introduction": "# Introduction" in text or "## Introduction" in text,
+      }
+
+  async def main():
+      results = [await run_one(q) for q in QUERIES]
+      for r in results:
+          print(f"Query: {r['query']}")
+          print(f"  word_count={r['word_count']}, has_introduction={r['has_introduction']}")
+
+  if __name__ == "__main__":
+      asyncio.run(main())
+  ```
+
+  Run:
+
+  ```bash
+  uv run python evals/run_end_to_end.py
+  ```
+
+  and check that each query meets your simple thresholds (e.g., `word_count >= 800`).
+
+- **Example B – Planner agent eval**
+
+  Create `evals/run_planner_eval.py`:
+
+  ```python
+  # evals/run_planner_eval.py
+  import asyncio
+  from planner_agent import planner_agent, WebSearchPlan
+  from agents import Runner
+
+  QUERIES = [
+      "What are top 4 Agentic AI frameworks in 2026?",
+      "When should I use fine-tuning vs RAG?",
+  ]
+
+  async def eval_planner(query: str):
+      result = await Runner.run(planner_agent, f"Query: {query}")
+      plan = result.final_output_as(WebSearchPlan)
+      queries = [item.query for item in plan.searches]
+      unique_queries = set(queries)
+      print(f"\nQuery: {query}")
+      print(f"  searches={len(queries)}, unique={len(unique_queries)}")
+      for q in queries:
+          print(f"   - {q}")
+
+  async def main():
+      for q in QUERIES:
+          await eval_planner(q)
+
+  if __name__ == "__main__":
+      asyncio.run(main())
+  ```
+
+  This lets you **eyeball** whether the planner is proposing useful, diverse searches whenever you change its prompt or model.
+
+- **Example C – Writer agent eval**
+
+  Create `evals/run_writer_eval.py`:
+
+  ```python
+  # evals/run_writer_eval.py
+  import asyncio
+  from writer_agent import writer_agent, ReportData
+  from agents import Runner
+
+  async def main():
+      fake_summaries = [
+          "Summary about major Agentic AI frameworks and their capabilities.",
+          "Summary about trends and adoption in 2026.",
+          "Summary about developer experience and ecosystem support.",
+      ]
+      input_text = (
+          "Original query: What are top 4 Agentic AI frameworks in 2026?\n"
+          f"Summarized search results: {fake_summaries}"
+      )
+      result = await Runner.run(writer_agent, input_text)
+      report: ReportData = result.final_output_as(ReportData)
+      words = len(report.markdown_report.split())
+      has_headings = "#" in report.markdown_report
+      print(f"short_summary: {report.short_summary[:120]}...")
+      print(f"word_count={words}, has_headings={has_headings}")
+
+  if __name__ == "__main__":
+      asyncio.run(main())
+  ```
+
+  Run this after changing the writer prompt to ensure it still produces long, well‑structured reports even when given synthetic inputs.
+
+- **Phase 1 – Manual / notebook‑based (optional)**
+  - For quick experiments, you can copy the logic above into a notebook, tweak prompts/models, and re‑run cells by hand.
 
 - **Phase 2 – Scripted evals**
   - Store eval inputs as JSON/CSV.
