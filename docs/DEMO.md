@@ -39,6 +39,10 @@ This shows:
 - A **trace URL** you can open in the OpenAI Platform to inspect the full run.
 - High-level **status messages** from `ResearchManager` as it plans searches, runs them, writes the report, sends the email, and finishes.
 
+Example terminal view:
+
+![Terminal run](../assets/Screenshot_2026-03-11_at_7.06.12_AM-bbfdd1c1-0618-4021-b6e7-03429367488f.png)
+
 ---
 
 ### 2. Open the browser UI
