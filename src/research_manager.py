@@ -12,21 +12,23 @@ class ResearchManager:
         trace_id = gen_trace_id()
         with trace("Research trace", trace_id=trace_id):
             print(f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}")
-            yield f"View trace: https://platform.openai.com/traces/trace?trace_id={trace_id}"
+            yield f"Trace: https://platform.openai.com/traces/trace?trace_id={trace_id}"
             
             print("Starting research...")
+            yield "Step 1/4: Planning searches"
             search_plan = await self.plan_searches(query)
-            yield "Searches planned, starting to search..." 
 
+            yield "Step 2/4: Running web searches"
             search_results = await self.perform_searches(search_plan)
-            yield "Searches complete, writing report..."
-
-            report = await self.write_report(query, search_results)
-            yield "Report written, sending email..."
             
+            yield "Step 3/4: Writing report"
+            report = await self.write_report(query, search_results)
+
+            yield "Step 4/4: Sending email"
             await self.send_email(report)
-            yield "Email sent, research complete"
+            yield "Done: Email sent, research complete"
             yield report.markdown_report
+
             print("Research completed...")
         
 

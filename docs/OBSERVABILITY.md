@@ -43,9 +43,9 @@ You can click the `View trace` URL to see the detailed trace in the OpenAI Platf
 
 ### 2. Logs overview: all calls in one place
 
-Screenshot: `assets/Screenshot_2026-03-11_at_7.17.31_AM-b3d0d772-6403-497d-97b6-56dfa0a58683.png`
+![Logs overview](../assets/Screenshot_2026-03-11_at_7.17.31_AM-b3d0d772-6403-497d-97b6-56dfa0a58683.png)
 
-This shows the **Logs → Responses** view in the OpenAI dashboard:
+This screenshot shows the **Logs → Responses** view in the OpenAI dashboard:
 
 - Each row corresponds to a **single agent call** (planner, each search, writer, email).
 - The **Input** column contains the prompt or tool arguments.
@@ -58,9 +58,9 @@ This view is useful to quickly confirm that all steps (plan, search, write, emai
 
 ### 3. Planner agent: planning the web searches
 
-Screenshot: `assets/Screenshot_2026-03-11_at_7.18.49_AM-9ab5614e-eafc-4c18-a668-60226197f7b6.png`
+![Planner agent log](../assets/Screenshot_2026-03-11_at_7.18.49_AM-9ab5614e-eafc-4c18-a668-60226197f7b6.png)
 
-This log entry corresponds to the **planner agent**:
+This screenshot shows the log entry corresponding to the **planner agent**:
 
 - **Instructions**: describe the agent as a research assistant that should output exactly 3 search terms.
 - **Input**: the original user query, e.g. `What are top 4 Agentic AI frameworks in 2026`.
@@ -75,12 +75,11 @@ In code, this is the agent defined in `planner_agent.py`, returning a structured
 
 ### 4. Search agent: running web searches in parallel
 
-Screenshots:
+![Search agent log 1](../assets/Screenshot_2026-03-11_at_7.19.16_AM-7a3f70d7-35d7-44be-9b59-bfe3134c71ed.png)
 
-- `assets/Screenshot_2026-03-11_at_7.19.16_AM-7a3f70d7-35d7-44be-9b59-bfe3134c71ed.png`
-- `assets/Screenshot_2026-03-11_at_7.19.51_AM-caf7eb5b-f33b-44ee-b06b-2a5e8238b39e.png`
+![Search agent log 2](../assets/Screenshot_2026-03-11_at_7.19.51_AM-caf7eb5b-f33b-44ee-b06b-2a5e8238b39e.png)
 
-Each of these log entries corresponds to one **search agent** call:
+Each of these screenshots shows a log entry for one **search agent** call:
 
 - **Instructions**: tell the agent to search the web and produce a concise 2–3 paragraph summary (< 300 words).
 - **Input**: a string combining
@@ -105,9 +104,9 @@ The summaries returned here become the **“summarized search results”** passe
 
 ### 5. Writer agent: creating the long-form report
 
-Screenshot: `assets/Screenshot_2026-03-11_at_7.20.42_AM-73dd0153-ebb9-4134-9a97-4045a8fa823b.png`
+![Writer agent log](../assets/Screenshot_2026-03-11_at_7.20.42_AM-73dd0153-ebb9-4134-9a97-4045a8fa823b.png)
 
-This log entry corresponds to the **writer agent**:
+This screenshot shows the log entry for the **writer agent**:
 
 - **Instructions**: describe a senior researcher who must:
   - Read the original query and search summaries.
@@ -132,12 +131,11 @@ The `markdown_report` field is what you see rendered in the browser UI and what 
 
 ### 6. Email agent: formatting to HTML and sending the email
 
-Screenshots:
+![Email agent function call](../assets/Screenshot_2026-03-11_at_7.21.14_AM-9727226c-772b-426c-a0c1-82dec13b8eed.png)
 
-- `assets/Screenshot_2026-03-11_at_7.21.14_AM-9727226c-772b-426c-a0c1-82dec13b8eed.png`
-- `assets/Screenshot_2026-03-11_at_7.22.01_AM-d1f250b5-f89d-4637-8bc1-b16b2f389560.png`
+![Email agent hosted environment result](../assets/Screenshot_2026-03-11_at_7.22.01_AM-d1f250b5-f89d-4637-8bc1-b16b2f389560.png)
 
-These log entries correspond to the **email agent**:
+These screenshots show the log entries corresponding to the **email agent**:
 
 - **Instructions**: tell the agent to send a nicely formatted HTML email based on a detailed report.
 - **Input**: the full markdown report created by the writer agent.
