@@ -81,6 +81,10 @@ The following image shows the end-to-end flow of the system, from user query to 
 
 ![Deep Research Flow](../assets/image-2b4324bd-2387-444e-94a3-f2a4805844c5.png)
 
+For a more visual, step-by-step view of the same flow:
+
+![Deep Research Flow – annotated steps](../docs/assets/image-cb5c5852-72db-420f-a43d-0cdd44381448.png)
+
 ### Data Flow
 
 1. **User query submission**
